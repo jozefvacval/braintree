@@ -1,0 +1,13 @@
+{
+  "require": {
+    "components/jquery": "~3.3.1",
+    "braintree/braintree_php" : "~3.39.0"
+  },
+  "scripts": {
+    "post-update-cmd": [
+      "if [ ! -d assets ]; then \n mkdir assets \n touch assets/dummy \n fi",
+      "rm -R assets/* ",
+      "cp vendor/components/jquery/* assets"
+    ]
+  }
+}
