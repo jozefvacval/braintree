@@ -35,8 +35,8 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Braintree card payment implementation Javascript SDK v.3</title>
-    <meta name="description" content="Braintree card payment implementation Javascript SDK v.3">
+    <title>Braintree card payment implementation 3D secure 2.0 beta Javascript v3 SDK</title>
+    <meta name="description" content="Braintree card payment implementation 3D secure 2.0 beta Javascript v3 SDK">
     <meta name="author" content="Jozef Vacval">
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -91,7 +91,7 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
 </head>
 
 <body>
-
+<h1>3D Secure 2.0 beta implementation</h1>
 
 <form id='frm' method="post">
     Number:
@@ -119,9 +119,9 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
 </div>
 
 <script src="assets/jquery.js"></script>
-<script src="https://js.braintreegateway.com/web/3.29.0/js/client.min.js"></script>
-<script src="https://js.braintreegateway.com/web/3.29.0/js/three-d-secure.js"></script>
-<script src="https://js.braintreegateway.com/web/3.29.0/js/hosted-fields.js"></script>
+<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/client.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/hosted-fields.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/three-d-secure.min.js"></script>
 
 
 <script>
@@ -166,7 +166,7 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
             fields: {
                 number: {
                     selector: '#number',
-                    placeholder: '4000 0000 0000 002'
+                    placeholder: '4000 0000 0000 1091'
                 },
                 cvv: {
                     selector: '#cvv',
@@ -174,12 +174,13 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
                 },
                 expirationDate: {
                     selector: '#date',
-                    placeholder: '01 / 20'
+                    placeholder: '01 / 2020'
                 }
             }
         }, onComponent('hostedFields'));
 
         braintree.threeDSecure.create({
+            version: 2,
             client: client
         }, onComponent('threeDSecure'));
     }
@@ -235,15 +236,16 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
                 alert(err.message);
                 enablePayNow();
                 return;
-            } else {
-                console.log('tokenization success:', payload);
             }
 
             components.threeDSecure.verifyCard({
                 amount: amountInput.val(),
-                nonce: payload.nonce,
+                tokenizedCard: payload,
                 addFrame: addFrame,
-                removeFrame: removeFrame
+                removeFrame: removeFrame,
+                onLookupComplete: function (data, next) {
+                    next();
+                }
             }, function (err, verification) {
                 if (err) {
                     alert(err.message);
