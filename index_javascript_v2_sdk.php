@@ -32,17 +32,18 @@ if (isset($_POST['cvv'])) {
          */
         Braintree_Transaction::submitForSettlement($result->transaction->id);
     } else {
-        echo "Fail";
+        echo "Fail: ".$result->message;
     }
 }
 
 
 ?>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Braintree card payment implementation</title>
-    <meta name="description" content="Braintree card payment implementation">
+    <title>Braintree card payment implementation Javascript SDK v.2</title>
+    <meta name="description" content="Braintree card payment implementation Javascript SDK v.2">
     <meta name="author" content="Jozef Vacval">
 </head>
 
