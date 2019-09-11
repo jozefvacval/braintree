@@ -2,11 +2,14 @@
 
 include('config.php');
 
-if (isset($_POST['amount']) && isset($_POST['nonce'])) {
+$amount = 100; // fixed amount 100
+
+if (isset($_POST['nonce'])) {
 
     $result = Braintree_Transaction::sale([
-        'amount' => $_POST['amount'],
+        'amount' => $amount,
         'paymentMethodNonce' => $_POST['nonce'],
+        'merchantAccountId' => $btSettings['merchant_account_id'], // from config
         'customer' => ['email' => 'customer@example.com',
             'company' => 'Company name'
         ],
@@ -35,230 +38,171 @@ if (isset($_POST['amount']) && isset($_POST['nonce'])) {
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Braintree card payment implementation 3D secure 2.0 beta Javascript v3 SDK</title>
-    <meta name="description" content="Braintree card payment implementation 3D secure 2.0 beta Javascript v3 SDK">
+    <title>Braintree card payment implementation 3D secure 2.0 Javascript v3 SDK</title>
+    <meta name="description" content="Braintree card payment implementation 3D secure 2.0 Javascript v3 SDK">
     <meta name="author" content="Jozef Vacval">
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        #frm {
-            width: 200px;
-            margin: auto;
-        }
 
-        #modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            display: flex;
-            align-items: center;
-            height: 100vh;
-            width: 100vw;
-            z-index: 100;
-        }
-
-        .bt-modal-frame {
-            height: 480px;
-            width: 440px;
-            margin: auto;
-            background-color: #eee;
-            z-index: 2;
-            border-radius: 6px;
-        }
-
-        .bt-modal-body {
-            height: 400px;
-            margin: 0 20px;
-            background-color: white;
-            border: 1px solid lightgray;
-        }
-
-        .bt-modal-header, .bt-modal-footer {
-            height: 40px;
-            text-align: center;
-            line-height: 40px;
-        }
-
-        .bt-mask {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 100%;
-            background-color: black;
-            opacity: 0.8;
-        }
-    </style>
 </head>
 
 <body>
-<h1>3D Secure 2.0 beta implementation</h1>
+<h1>3D Secure 2.0 implementation</h1>
 
-<form id='frm' method="post">
-    Number:
-    <div id="number" class="form-control"></div>
-    Date:
-    <div id="date" class="form-control"></div>
-    CVV:
-    <div id="cvv" class="form-control"></div>
-    Amount:
-    <input id="amount" name="amount" class="form-control" value="1">
-    <input name="nonce" id="nonce" type="hidden" class="form-control">
-    <input id="pay-btn" type="submit" value="Loading...">
+<!-- form for submit -->
+<form action="" method="post" id="frm">
+    <input type="hidden" id="nonce" name="nonce" value="">
+</form>
+
+<form action="javascript:void(0)" class="container">
+    <div class="row">
+        <div class="col-xs-12">
+            <table class="table">
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+                <tr>
+                    <td>Number (successful with no challenge)</td>
+                    <td>4000000000001000</td>
+                </tr>
+                <tr>
+                    <td>Number (successful with challenge)</td>
+                    <td>4000000000001091</td>
+                </tr>
+                <tr>
+                    <td>Number (unsuccessful with challenge)</td>
+                    <td>4000000000001109</td>
+                </tr>
+                <tr>
+                    <td>Expiration Date (for sandbox testing, year must be exactly 3 years in the future)</td>
+                    <td>12/22</td>
+                </tr>
+                <tr>
+                    <td>CVV</td>
+                    <td>123</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+
+    <div id="hosted-fields">
+        Card number:
+        <div id="hf-number" class="form-control"></div>
+        Expiration date:
+        <div id="hf-date" class="form-control"></div>
+        CVV:
+        <div id="hf-cvv" class="form-control"></div>
+        <input disabled="disabled" id="pay-btn" class="btn btn-success" type="submit" value="Loading...">
+    </div>
+
+
 </form>
 
 
-<div id="modal" class="hidden">
-    <div class="bt-mask"></div>
-    <div class="bt-modal-frame">
-        <div class="bt-modal-header">
-            <div class="header-text">Authentication</div>
-        </div>
-        <div class="bt-modal-body"></div>
-        <div class="bt-modal-footer"><a id="text-close" href="#">Cancel</a></div>
-    </div>
-</div>
-
 <script src="assets/jquery.js"></script>
-<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/client.min.js"></script>
-<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/hosted-fields.min.js"></script>
-<script src="https://js.braintreegateway.com/web/3.43.0-beta.4/js/three-d-secure.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.52.0/js/client.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.52.0/js/hosted-fields.min.js"></script>
+<script src="https://js.braintreegateway.com/web/3.52.0/js/three-d-secure.min.js"></script>
 
 
 <script>
-    var payBtn = $('#pay-btn');
-    var modal = $('#modal');
-    var bankFrame = $('.bt-modal-body');
-    var closeFrame = $('#text-close');
-    var amountInput = $('#amount');
-    var components = {
-        client: null,
-        threeDSecure: null,
-        hostedFields: null,
-    };
+    var hf, threeDS;
 
-    $.getJSON("generateToken.php", function (data) {
-        onFetchClientToken(data.client_token);
-    });
+    function start() {
+        getClientToken();
+    }
 
+    function getClientToken() {
+        $.getJSON("generateToken.php", function (data) {
+            onFetchClientToken(data.client_token);
+        });
+    }
+
+    function setupComponents(clientToken) {
+        return Promise.all([
+            braintree.hostedFields.create({
+                authorization: clientToken,
+                styles: {
+                    input: {
+                        'font-size': '14px',
+                        'font-family': 'monospace'
+                    }
+                },
+                fields: {
+                    number: {
+                        selector: '#hf-number',
+                        placeholder: '4111 1111 1111 1111'
+                    },
+                    cvv: {
+                        selector: '#hf-cvv',
+                        placeholder: '123'
+                    },
+                    expirationDate: {
+                        selector: '#hf-date',
+                        placeholder: '12 / 2020'
+                    }
+                }
+            }),
+            braintree.threeDSecure.create({
+                authorization: clientToken,
+                version: 2
+            })
+        ]);
+    }
 
     function onFetchClientToken(clientToken) {
-        braintree.client.create({
-            authorization: clientToken
-        }, onClientCreate);
-    }
+        return setupComponents(clientToken).then(function (instances) {
+            hf = instances[0];
+            threeDS = instances[1];
 
-    function onClientCreate(err, client) {
-        if (err) {
-            alert(err.message);
-            return;
-        }
-
-        components.client = client;
-
-        braintree.hostedFields.create({
-            client: client,
-            styles: {
-                input: {
-                    'font-size': '14px',
-                    'font-family': 'monospace'
-                }
-            },
-            fields: {
-                number: {
-                    selector: '#number',
-                    placeholder: '4000 0000 0000 1091'
-                },
-                cvv: {
-                    selector: '#cvv',
-                    placeholder: '123'
-                },
-                expirationDate: {
-                    selector: '#date',
-                    placeholder: '01 / 2020'
-                }
-            }
-        }, onComponent('hostedFields'));
-
-        braintree.threeDSecure.create({
-            version: 2,
-            client: client
-        }, onComponent('threeDSecure'));
-    }
-
-    function onComponent(name) {
-        return function (err, component) {
-            if (err) {
-                alert(err.message);
-                return;
-            }
-
-            components[name] = component;
-
-            if (components.threeDSecure && components.hostedFields) {
-                setupForm();
-            }
-        }
+            setupForm();
+        }).catch(function (err) {
+            alert(err.message)
+        });
     }
 
     function setupForm() {
         enablePayNow();
     }
 
-    function addFrame(err, iframe) {
-        bankFrame.append(iframe);
-        modal.removeClass('hidden');
-    }
-
-    function removeFrame() {
-        var iframe = bankFrame.find('iframe');
-        modal.addClass('hidden');
-        iframe.remove();
-    }
-
     function enablePayNow() {
-        payBtn.val('Pay Now');
-        payBtn.removeAttr('disabled');
+        $('#pay-btn').val('Pay Now');
+        $('#pay-btn').prop("disabled", false);
     }
 
-    closeFrame.click(function () {
-        components.threeDSecure.cancelVerifyCard(removeFrame());
-        enablePayNow();
-    });
-
-    payBtn.click(function (event) {
-        event.preventDefault();
-        payBtn.attr('disabled', 'disabled');
-        payBtn.val('Processing...');
+    $(document).on('click', '#pay-btn', function (event) {
+        $(this).prop("disabled", true);
+        $(this).val('Processing...');
 
 
-        components.hostedFields.tokenize(function (err, payload) {
-            if (err) {
-                alert(err.message);
-                enablePayNow();
+        hf.tokenize().then(function (payload) {
+            return threeDS.verifyCard({
+                onLookupComplete: function (data, next) {
+                    next();
+                },
+                amount: <?= $amount ?>,
+                nonce: payload.nonce,
+                bin: payload.details.bin,
+            })
+        }).then(function (payload) {
+            if (!payload.liabilityShifted) {
+                console.log('Liability did not shift', payload);
+                $('#frm').submit();
                 return;
             }
 
-            components.threeDSecure.verifyCard({
-                amount: amountInput.val(),
-                tokenizedCard: payload,
-                addFrame: addFrame,
-                removeFrame: removeFrame,
-                onLookupComplete: function (data, next) {
-                    next();
-                }
-            }, function (err, verification) {
-                if (err) {
-                    alert(err.message);
-                    enablePayNow();
-                    return;
-                }
+            console.log('verification success:', payload);
+            $('#nonce').val(payload.nonce);
+            $('#frm').submit();
 
-                $('#nonce').val(verification.nonce);
-                $('#frm').submit();
-
-            });
+        }).catch(function (err) {
+            alert(err.message)
+            enablePayNow();
         });
     });
+
+    start();
 
 </script>
 </body>
